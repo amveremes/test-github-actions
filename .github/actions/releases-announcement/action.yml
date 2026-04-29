@@ -35,44 +35,66 @@ runs:
         if [ -n "${{ inputs.tag }}" ]; then
           TAG="${{ inputs.tag }}"
         else
-          TAG=$(gh release list --repo="${{ github.repository }}" --limit 1 --json=tagName --jq='.[0].tagName' 2>/dev/null || echo "v0.0.0")
+          # Récupérer le dernier tag existant
+          TAG=$(gh release list --repo="${{ github.repository }}" --limit 1 --json=tagName --jq='.[0].tagName' 2>/dev/null || echo "")
+
+          # Si aucun tag, utiliser v0.0.0 comme fallback
+          if [ -z "$TAG" ]; then
+            echo "⚠️ No release found, checking for tag v0.0.0..."
+            if git ls-remote --tags "${{ github.repository }}" | grep -q "refs/tags/v0.0.0$"; then
+              TAG="v0.0.0"
+            else
+              echo "❌ No release or tag found. Please create a release first."
+              exit 1
+            fi
+          fi
         fi
 
         echo "📦 Announcing release: $TAG"
 
         # Fetch release notes
-        RELEASE_NOTES=$(gh release view "$TAG" --repo="${{ github.repository }}" --json=body --jq='.body' 2>/dev/null || echo "No release notes provided")
+        RELEASE_NOTES=$(gh release view "$TAG" --repo="${{ github.repository }}" --json=body --jq='.body' 2>/dev/null || echo "Release notes not available")
 
-        # Get category ID from slug
+        # Get organization
         ORG="${{ github.repository_owner }}"
         CATEGORY_SLUG="${{ inputs.category }}"
 
-        # Get category ID (required for discussions API)
+        echo "🏢 Organization: $ORG"
+        echo "📂 Category: $CATEGORY_SLUG"
+
+        # Get category ID
         CATEGORY_ID=$(gh api "/orgs/${ORG}/discussion_categories" --jq ".[] | select(.slug==\"$CATEGORY_SLUG\") | .id" 2>/dev/null || echo "")
 
         if [ -z "$CATEGORY_ID" ]; then
-          echo "⚠️ Category '$CATEGORY_SLUG' not found, using 'general'"
+          echo "⚠️ Category '$CATEGORY_SLUG' not found, trying 'general'..."
           CATEGORY_ID=$(gh api "/orgs/${ORG}/discussion_categories" --jq '.[] | select(.slug=="general") | .id' 2>/dev/null || echo "")
         fi
 
+        if [ -z "$CATEGORY_ID" ]; then
+          echo "❌ No valid category found. Available categories:"
+          gh api "/orgs/${ORG}/discussion_categories" --jq '.[].slug' 2>/dev/null || echo "Cannot fetch categories"
+          exit 1
+        fi
+
+        echo "✅ Category ID: $CATEGORY_ID"
+
         # Create organization discussion
-        ANNOUNCEMENT_URL=$(gh api -X POST "/orgs/${ORG}/discussions" \
+        echo "📝 Creating discussion..."
+        DISCUSSION_RESPONSE=$(gh api -X POST "/orgs/${ORG}/discussions" \
           -f title="🚀 Release $TAG" \
           -f body="$RELEASE_NOTES" \
           -f category_id="$CATEGORY_ID" \
-          --jq '.html_url' 2>/dev/null || echo "")
+          --jq '.html_url' 2>&1)
 
-        if [ -z "$ANNOUNCEMENT_URL" ]; then
-          echo "❌ Failed to create organization discussion"
-          echo "💡 Fallback: creating an issue instead"
-
-          ANNOUNCEMENT_URL=$(gh issue create \
-            --repo="${{ github.repository }}" \
-            --title="📢 Release $TAG" \
-            --body="$RELEASE_NOTES" \
-            --label="release" \
-            --web 2>/dev/null || echo "")
+        # Vérifier si la réponse est une URL valide
+        if [[ "$DISCUSSION_RESPONSE" =~ ^https?:// ]]; then
+          ANNOUNCEMENT_URL="$DISCUSSION_RESPONSE"
+          echo "✅ Announcement created: $ANNOUNCEMENT_URL"
+        else
+          echo "❌ Failed to create discussion"
+          echo "Error: $DISCUSSION_RESPONSE"
+          exit 1
         fi
 
-        echo "✅ Announcement created: $ANNOUNCEMENT_URL"
+        # Sauvegarder le résultat
         echo "announcement_url=$ANNOUNCEMENT_URL" >> "$GITHUB_OUTPUT"

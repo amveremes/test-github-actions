@@ -4,13 +4,8 @@ name: Announce Release
 on:
   workflow_dispatch:
     inputs:
-      test_title:
-        description: "Titre de test"
-        required: false
-        default: "🧪 Test Discussion"
-        type: string
-      test_category:
-        description: "Catégorie"
+      category:
+        description: "Category"
         required: false
         default: "general"
         type: choice
@@ -18,21 +13,55 @@ on:
           - general
           - announcements
           - ideas
-          - q-a
+      tag:
+        description: "Tag name (optional, defaults to latest)"
+        required: false
+        default: ""
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Important pour récupérer tous les tags
 
-      - name: Create discussion
-        id: create
+      - name: List available tags (debug)
+        run: |
+          echo "Available tags:"
+          git tag -l
+          echo "Releases:"
+          gh release list --repo="${{ github.repository }}" || echo "No releases"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create announcement
+        id: announce
         uses: ./.github/actions/releases-announcement
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          category: ${{ github.event.inputs.test_category }}
+          category: ${{ github.event.inputs.category }}
+          tag: ${{ github.event.inputs.tag }}
 
       - name: Show result
         run: |
-          echo "URL: ${{ steps.create.outputs.announcement_url }}"
+          echo "✅ Success!"
+          echo "🔗 Discussion URL: ${{ steps.announce.outputs.announcement_url }}"
+
+      - name: Add comment to the discussion
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DISCUSSION_URL="${{ steps.announce.outputs.announcement_url }}"
+          if [ -n "$DISCUSSION_URL" ]; then
+            # Extraire l'ID de la discussion depuis l'URL
+            DISCUSSION_ID=$(echo "$DISCUSSION_URL" | grep -oP '(?<=/discussions/)\d+')
+            if [ -n "$DISCUSSION_ID" ]; then
+              gh api -X POST "/repos/${{ github.repository }}/discussions/$DISCUSSION_ID/comments" \
+                -f body="🤖 Test automatisé depuis le workflow [run #${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" \
+                --silent
+              echo "✅ Comment added to discussion"
+            fi
+          fi
