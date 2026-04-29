@@ -2,17 +2,37 @@
 name: Announce Release
 
 on:
-  release:
-    types: [published]
+  workflow_dispatch:
+    inputs:
+      test_title:
+        description: "Titre de test"
+        required: false
+        default: "🧪 Test Discussion"
+        type: string
+      test_category:
+        description: "Catégorie"
+        required: false
+        default: "general"
+        type: choice
+        options:
+          - general
+          - announcements
+          - ideas
+          - q-a
 
 jobs:
-  announce:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Create announcement
+      - name: Create discussion
+        id: create
         uses: ./.github/actions/releases-announcement
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          category: "announcements" # ou "general", "show-and-tell"
+          category: ${{ github.event.inputs.test_category }}
+
+      - name: Show result
+        run: |
+          echo "URL: ${{ steps.create.outputs.announcement_url }}"
