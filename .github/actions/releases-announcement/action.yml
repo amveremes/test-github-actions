@@ -1,4 +1,29 @@
 # .github/actions/releases-announcement/action.yml
+name: "Releases Announcement"
+description: "Create a GitHub Release announcement based on the release notes"
+
+inputs:
+  github_token:
+    description: "GitHub token with discussions:write permission"
+    required: true
+  tag:
+    description: "Specific tag to announce (defaults to latest)"
+    required: false
+    default: ""
+  category:
+    description: "Discussion category (announcements, general, ideas, q-a)"
+    required: false
+    default: "general"
+  repository:
+    description: "Repository to create discussion in (format: owner/repo)"
+    required: false
+    default: ${{ github.repository }}
+
+outputs:
+  announcement_url:
+    description: "URL of the created discussion"
+    value: ${{ steps.announcement.outputs.announcement_url }}
+
 runs:
   using: "composite"
   steps:
@@ -15,7 +40,10 @@ runs:
           TAG="${{ inputs.tag }}"
         else
           TAG=$(gh release list --repo="${{ github.repository }}" --limit 1 --json=tagName --jq='.[0].tagName' 2>/dev/null || echo "")
-          [ -z "$TAG" ] && echo "❌ No release found" && exit 1
+          if [ -z "$TAG" ]; then
+            echo "❌ No release found"
+            exit 1
+          fi
         fi
 
         echo "📦 Announcing release: $TAG"
@@ -23,20 +51,92 @@ runs:
         # Get release notes
         RELEASE_NOTES=$(gh release view "$TAG" --repo="${{ github.repository }}" --json=body --jq='.body' 2>/dev/null || echo "Release notes not available")
 
+        # Échapper le body pour JSON
+        BODY_JSON=$(echo "$RELEASE_NOTES" | jq -Rs .)
+
         # Target repository
         TARGET_REPO="${{ inputs.repository }}"
+        REPO_OWNER="${TARGET_REPO%/*}"
+        REPO_NAME="${TARGET_REPO#*/}"
 
-        # Create discussion using REST API (plus simple)
-        # Note: Il faut que les Discussions soient activées dans le dépôt
-        DISCUSSION_URL=$(gh api \
-          --method POST \
-          "/repos/${TARGET_REPO}/discussions" \
-          -f title="🚀 Release $TAG" \
+        echo "📂 Target repository: $TARGET_REPO"
+
+        # 1. Récupérer l'ID du dépôt via GraphQL
+        REPO_ID=$(gh api graphql \
+          -f query='query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { id } }' \
+          -F owner="$REPO_OWNER" \
+          -F name="$REPO_NAME" \
+          --jq '.data.repository.id')
+
+        if [ -z "$REPO_ID" ] || [ "$REPO_ID" = "null" ]; then
+          echo "❌ Failed to get repository ID"
+          exit 1
+        fi
+
+        # 2. Récupérer l'ID de la catégorie
+        CATEGORY_SLUG="${{ inputs.category }}"
+
+        CATEGORY_ID=$(gh api graphql \
+          -f query='query($owner: String!, $name: String!, $slug: String!) {
+            repository(owner: $owner, name: $name) {
+              discussionCategories(first: 10) {
+                nodes {
+                  id
+                  slug
+                }
+              }
+            }
+          }' \
+          -F owner="$REPO_OWNER" \
+          -F name="$REPO_NAME" \
+          -F slug="$CATEGORY_SLUG" \
+          --jq ".data.repository.discussionCategories.nodes[] | select(.slug == \"$CATEGORY_SLUG\") | .id")
+
+        if [ -z "$CATEGORY_ID" ]; then
+          echo "❌ Category '$CATEGORY_SLUG' not found"
+          echo "Available categories:"
+          gh api graphql \
+            -f query='query($owner: String!, $name: String!) {
+              repository(owner: $owner, name: $name) {
+                discussionCategories(first: 10) {
+                  nodes {
+                    slug
+                    name
+                  }
+                }
+              }
+            }' \
+            -F owner="$REPO_OWNER" \
+            -F name="$REPO_NAME" \
+            --jq '.data.repository.discussionCategories.nodes[].slug'
+          exit 1
+        fi
+
+        echo "✅ Category ID: $CATEGORY_ID"
+
+        # 3. Créer la discussion via GraphQL
+        TITLE="🚀 Release $TAG"
+
+        DISCUSSION_URL=$(gh api graphql \
+          -f query='mutation($repoId: ID!, $categoryId: ID!, $title: String!, $body: String!) {
+            createDiscussion(input: {
+              repositoryId: $repoId,
+              categoryId: $categoryId,
+              title: $title,
+              body: $body
+            }) {
+              discussion {
+                url
+              }
+            }
+          }' \
+          -F repoId="$REPO_ID" \
+          -F categoryId="$CATEGORY_ID" \
+          -F title="$TITLE" \
           -f body="$RELEASE_NOTES" \
-          -f category_id="general" \
-          --jq '.html_url' 2>/dev/null || echo "")
+          --jq '.data.createDiscussion.discussion.url')
 
-        if [ -z "$DISCUSSION_URL" ]; then
+        if [ -z "$DISCUSSION_URL" ] || [ "$DISCUSSION_URL" = "null" ]; then
           echo "❌ Failed to create discussion"
           echo "💡 Make sure Discussions are enabled in the repository settings"
           exit 1
