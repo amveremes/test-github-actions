@@ -1,29 +1,4 @@
 # .github/actions/releases-announcement/action.yml
-name: "Releases Announcement"
-description: "Create a GitHub Release announcement based on the release notes"
-
-inputs:
-  github_token:
-    description: "GitHub token with discussions:write permission"
-    required: true
-  tag:
-    description: "Specific tag to announce (defaults to latest)"
-    required: false
-    default: ""
-  category:
-    description: "Discussion category (announcements, general, ideas, q-a)"
-    required: false
-    default: "general"
-  repository:
-    description: "Repository to create discussion in (format: owner/repo)"
-    required: false
-    default: ${{ github.repository }}
-
-outputs:
-  announcement_url:
-    description: "URL of the created announcement"
-    value: ${{ steps.announcement.outputs.announcement_url }}
-
 runs:
   using: "composite"
   steps:
@@ -40,94 +15,32 @@ runs:
           TAG="${{ inputs.tag }}"
         else
           TAG=$(gh release list --repo="${{ github.repository }}" --limit 1 --json=tagName --jq='.[0].tagName' 2>/dev/null || echo "")
-          if [ -z "$TAG" ]; then
-            echo "❌ No release found"
-            exit 1
-          fi
+          [ -z "$TAG" ] && echo "❌ No release found" && exit 1
         fi
 
         echo "📦 Announcing release: $TAG"
 
-        # Fetch release notes
+        # Get release notes
         RELEASE_NOTES=$(gh release view "$TAG" --repo="${{ github.repository }}" --json=body --jq='.body' 2>/dev/null || echo "Release notes not available")
 
-        # Repository target
+        # Target repository
         TARGET_REPO="${{ inputs.repository }}"
-        REPO_OWNER="${TARGET_REPO%/*}"
-        REPO_NAME="${TARGET_REPO#*/}"
 
-        echo "📂 Target repository: $TARGET_REPO"
+        # Create discussion using REST API (plus simple)
+        # Note: Il faut que les Discussions soient activées dans le dépôt
+        DISCUSSION_URL=$(gh api \
+          --method POST \
+          "/repos/${TARGET_REPO}/discussions" \
+          -f title="🚀 Release $TAG" \
+          -f body="$RELEASE_NOTES" \
+          -f category_id="general" \
+          --jq '.html_url' 2>/dev/null || echo "")
 
-        # Pour un dépôt, il faut d'abord récupérer l'ID de la catégorie
-        # via GraphQL (l'API REST ne supporte pas directement)
-
-        # Récupérer l'ID de la catégorie via GraphQL
-        GRAPHQL_QUERY=$(cat <<EOF
-        {
-          "query": "query(\$owner: String!, \$name: String!) {
-            repository(owner: \$owner, name: \$name) {
-              discussionCategories(first: 10) {
-                nodes {
-                  id
-                  slug
-                  name
-                }
-              }
-            }
-          }",
-          "variables": {
-            "owner": "$REPO_OWNER",
-            "name": "$REPO_NAME"
-          }
-        }
-        EOF
-        )
-
-        CATEGORY_ID=$(gh api graphql -f query="$GRAPHQL_QUERY" --jq ".data.repository.discussionCategories.nodes[] | select(.slug == \"${{ inputs.category }}\") | .id" 2>/dev/null || echo "")
-
-        if [ -z "$CATEGORY_ID" ]; then
-          echo "❌ Category '${{ inputs.category }}' not found in repository $TARGET_REPO"
-          echo "Available categories:"
-          gh api graphql -f query="$GRAPHQL_QUERY" --jq '.data.repository.discussionCategories.nodes[].slug' 2>/dev/null
-          exit 1
-        fi
-
-        echo "✅ Category ID: $CATEGORY_ID"
-
-        # Créer la discussion dans le dépôt via GraphQL
-        echo "📝 Creating discussion in repository..."
-
-        CREATE_MUTATION=$(cat <<EOF
-        {
-          "query": "mutation(\$repoId: ID!, \$categoryId: ID!, \$title: String!, \$body: String!) {
-            createDiscussion(input: {
-              repositoryId: \$repoId,
-              categoryId: \$categoryId,
-              title: \$title,
-              body: \$body
-            }) {
-              discussion {
-                url
-              }
-            }
-          }",
-          "variables": {
-            "repoId": "$(gh api graphql -f query="query { repository(owner:\"$REPO_OWNER\", name:\"$REPO_NAME\") { id } }" --jq '.data.repository.id')",
-            "categoryId": "$CATEGORY_ID",
-            "title": "🚀 Release $TAG",
-            "body": "$RELEASE_NOTES"
-          }
-        }
-        EOF
-        )
-
-        DISCUSSION_URL=$(gh api graphql -f query="$CREATE_MUTATION" --jq '.data.createDiscussion.discussion.url' 2>&1)
-
-        if [[ "$DISCUSSION_URL" =~ ^https?:// ]]; then
-          echo "✅ Announcement created: $DISCUSSION_URL"
-          echo "announcement_url=$DISCUSSION_URL" >> "$GITHUB_OUTPUT"
-        else
+        if [ -z "$DISCUSSION_URL" ]; then
           echo "❌ Failed to create discussion"
-          echo "Error: $DISCUSSION_URL"
+          echo "💡 Make sure Discussions are enabled in the repository settings"
           exit 1
         fi
+
+        echo "✅ Announcement created: $DISCUSSION_URL"
+        echo "announcement_url=$DISCUSSION_URL" >> "$GITHUB_OUTPUT"
