@@ -51,9 +51,6 @@ runs:
         # Get release notes
         RELEASE_NOTES=$(gh release view "$TAG" --repo="${{ github.repository }}" --json=body --jq='.body' 2>/dev/null || echo "Release notes not available")
 
-        # Échapper le body pour JSON
-        BODY_JSON=$(echo "$RELEASE_NOTES" | jq -Rs .)
-
         # Target repository
         TARGET_REPO="${{ inputs.repository }}"
         REPO_OWNER="${TARGET_REPO%/*}"
@@ -62,6 +59,7 @@ runs:
         echo "📂 Target repository: $TARGET_REPO"
 
         # 1. Récupérer l'ID du dépôt via GraphQL
+        echo "🔍 Getting repository ID..."
         REPO_ID=$(gh api graphql \
           -f query='query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { id } }' \
           -F owner="$REPO_OWNER" \
@@ -72,24 +70,27 @@ runs:
           echo "❌ Failed to get repository ID"
           exit 1
         fi
+        echo "✅ Repository ID: $REPO_ID"
 
         # 2. Récupérer l'ID de la catégorie
         CATEGORY_SLUG="${{ inputs.category }}"
+        echo "🔍 Getting category ID for '$CATEGORY_SLUG'..."
 
+        # Requête sans variable $slug inutilisée
         CATEGORY_ID=$(gh api graphql \
-          -f query='query($owner: String!, $name: String!, $slug: String!) {
+          -f query='query($owner: String!, $name: String!) {
             repository(owner: $owner, name: $name) {
               discussionCategories(first: 10) {
                 nodes {
                   id
                   slug
+                  name
                 }
               }
             }
           }' \
           -F owner="$REPO_OWNER" \
           -F name="$REPO_NAME" \
-          -F slug="$CATEGORY_SLUG" \
           --jq ".data.repository.discussionCategories.nodes[] | select(.slug == \"$CATEGORY_SLUG\") | .id")
 
         if [ -z "$CATEGORY_ID" ]; then
@@ -108,13 +109,14 @@ runs:
             }' \
             -F owner="$REPO_OWNER" \
             -F name="$REPO_NAME" \
-            --jq '.data.repository.discussionCategories.nodes[].slug'
+            --jq '.data.repository.discussionCategories.nodes[] | "  - \(.slug): \(.name)"'
           exit 1
         fi
 
         echo "✅ Category ID: $CATEGORY_ID"
 
         # 3. Créer la discussion via GraphQL
+        echo "📝 Creating discussion..."
         TITLE="🚀 Release $TAG"
 
         DISCUSSION_URL=$(gh api graphql \
