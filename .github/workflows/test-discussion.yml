@@ -27,7 +27,8 @@ jobs:
   announcement:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -47,8 +48,14 @@ jobs:
           fi
 
       - name: Create test discussion
+        id: announce
         uses: ./.github/actions/releases-announcement
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           category: ${{ github.event.inputs.category }}
           repository: "${{ github.repository }}"
+
+      - name: Show result
+        run: |
+          echo "✅ Success!"
+          echo "🔗 Discussion URL: ${{ steps.announce.outputs.announcement_url }}"
