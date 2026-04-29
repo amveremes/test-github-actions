@@ -4,6 +4,11 @@ name: Test Discussion Creation
 on:
   workflow_dispatch:
 
+# ⚠️ CRUCIAL : Ajouter ces permissions
+permissions:
+  contents: read
+  discussions: write # ← Permission pour créer des discussions
+
 jobs:
   test:
     runs-on: ubuntu-latest
