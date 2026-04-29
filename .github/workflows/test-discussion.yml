@@ -1,67 +1,32 @@
-# .github/workflows/announce-release.yml
-name: Announce Release
+# .github/workflows/test-discussion.yml
+name: Test Discussion Creation
 
 on:
   workflow_dispatch:
-    inputs:
-      category:
-        description: "Category"
-        required: false
-        default: "general"
-        type: choice
-        options:
-          - general
-          - announcements
-          - ideas
-      tag:
-        description: "Tag name (optional, defaults to latest)"
-        required: false
-        default: ""
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # Important pour récupérer tous les tags
+      - uses: actions/checkout@v4
 
-      - name: List available tags (debug)
-        run: |
-          echo "Available tags:"
-          git tag -l
-          echo "Releases:"
-          gh release list --repo="${{ github.repository }}" || echo "No releases"
+      - name: Enable Discussions check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Vérifier si les discussions sont activées
+          REPO="amveremes/test-github-actions"
+          if gh api "/repos/${REPO}" --jq '.has_discussions' | grep -q "true"; then
+            echo "✅ Discussions are enabled!"
+          else
+            echo "❌ Discussions are NOT enabled"
+            echo "Please enable them in: https://github.com/${REPO}/settings"
+            exit 1
+          fi
 
-      - name: Create announcement
-        id: announce
+      - name: Create test discussion
         uses: ./.github/actions/releases-announcement
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          category: ${{ github.event.inputs.category }}
-          tag: ${{ github.event.inputs.tag }}
-
-      - name: Show result
-        run: |
-          echo "✅ Success!"
-          echo "🔗 Discussion URL: ${{ steps.announce.outputs.announcement_url }}"
-
-      - name: Add comment to the discussion
-        if: success()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          DISCUSSION_URL="${{ steps.announce.outputs.announcement_url }}"
-          if [ -n "$DISCUSSION_URL" ]; then
-            # Extraire l'ID de la discussion depuis l'URL
-            DISCUSSION_ID=$(echo "$DISCUSSION_URL" | grep -oP '(?<=/discussions/)\d+')
-            if [ -n "$DISCUSSION_ID" ]; then
-              gh api -X POST "/repos/${{ github.repository }}/discussions/$DISCUSSION_ID/comments" \
-                -f body="🤖 Test automatisé depuis le workflow [run #${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" \
-                --silent
-              echo "✅ Comment added to discussion"
-            fi
-          fi
+          category: "general"
+          repository: "amveremes/test-github-actions"
