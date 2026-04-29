@@ -3,6 +3,20 @@ name: Test Discussion Creation
 
 on:
   workflow_dispatch:
+    inputs:
+      category:
+        description: "Category"
+        required: false
+        default: "general"
+        type: choice
+        options:
+          - general
+          - announcements
+          - ideas
+      tag:
+        description: "Tag name (optional, defaults to latest)"
+        required: false
+        default: ""
 
 # ⚠️ CRUCIAL : Ajouter ces permissions
 permissions:
@@ -10,17 +24,19 @@ permissions:
   discussions: write # ← Permission pour créer des discussions
 
 jobs:
-  test:
+  announcement:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Enable Discussions check
+      - name: Check discussions enabled
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Vérifier si les discussions sont activées
-          REPO="amveremes/test-github-actions"
+          REPO="${{ github.repository }}"
+          echo "Repository : ${REPO}"
           if gh api "/repos/${REPO}" --jq '.has_discussions' | grep -q "true"; then
             echo "✅ Discussions are enabled!"
           else
@@ -33,5 +49,5 @@ jobs:
         uses: ./.github/actions/releases-announcement
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          category: "general"
-          repository: "amveremes/test-github-actions"
+          category: ${{ github.event.inputs.category }}
+          repository: "${{ github.repository }}"
