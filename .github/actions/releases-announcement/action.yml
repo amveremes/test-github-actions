@@ -13,7 +13,11 @@ inputs:
   category:
     description: "Discussion category (announcements, general, ideas, q-a)"
     required: false
-    default: "announcements"
+    default: "general"
+  repository:
+    description: "Repository to create discussion in (format: owner/repo)"
+    required: false
+    default: ${{ github.repository }}
 
 outputs:
   announcement_url:
@@ -35,18 +39,10 @@ runs:
         if [ -n "${{ inputs.tag }}" ]; then
           TAG="${{ inputs.tag }}"
         else
-          # Récupérer le dernier tag existant
           TAG=$(gh release list --repo="${{ github.repository }}" --limit 1 --json=tagName --jq='.[0].tagName' 2>/dev/null || echo "")
-
-          # Si aucun tag, utiliser v0.0.0 comme fallback
           if [ -z "$TAG" ]; then
-            echo "⚠️ No release found, checking for tag v0.0.0..."
-            if git ls-remote --tags "${{ github.repository }}" | grep -q "refs/tags/v0.0.0$"; then
-              TAG="v0.0.0"
-            else
-              echo "❌ No release or tag found. Please create a release first."
-              exit 1
-            fi
+            echo "❌ No release found"
+            exit 1
           fi
         fi
 
@@ -55,46 +51,83 @@ runs:
         # Fetch release notes
         RELEASE_NOTES=$(gh release view "$TAG" --repo="${{ github.repository }}" --json=body --jq='.body' 2>/dev/null || echo "Release notes not available")
 
-        # Get organization
-        ORG="${{ github.repository_owner }}"
-        CATEGORY_SLUG="${{ inputs.category }}"
+        # Repository target
+        TARGET_REPO="${{ inputs.repository }}"
+        REPO_OWNER="${TARGET_REPO%/*}"
+        REPO_NAME="${TARGET_REPO#*/}"
 
-        echo "🏢 Organization: $ORG"
-        echo "📂 Category: $CATEGORY_SLUG"
+        echo "📂 Target repository: $TARGET_REPO"
 
-        # Get category ID
-        CATEGORY_ID=$(gh api "/orgs/${ORG}/discussion_categories" --jq ".[] | select(.slug==\"$CATEGORY_SLUG\") | .id" 2>/dev/null || echo "")
+        # Pour un dépôt, il faut d'abord récupérer l'ID de la catégorie
+        # via GraphQL (l'API REST ne supporte pas directement)
+
+        # Récupérer l'ID de la catégorie via GraphQL
+        GRAPHQL_QUERY=$(cat <<EOF
+        {
+          "query": "query(\$owner: String!, \$name: String!) {
+            repository(owner: \$owner, name: \$name) {
+              discussionCategories(first: 10) {
+                nodes {
+                  id
+                  slug
+                  name
+                }
+              }
+            }
+          }",
+          "variables": {
+            "owner": "$REPO_OWNER",
+            "name": "$REPO_NAME"
+          }
+        }
+        EOF
+        )
+
+        CATEGORY_ID=$(gh api graphql -f query="$GRAPHQL_QUERY" --jq ".data.repository.discussionCategories.nodes[] | select(.slug == \"${{ inputs.category }}\") | .id" 2>/dev/null || echo "")
 
         if [ -z "$CATEGORY_ID" ]; then
-          echo "⚠️ Category '$CATEGORY_SLUG' not found, trying 'general'..."
-          CATEGORY_ID=$(gh api "/orgs/${ORG}/discussion_categories" --jq '.[] | select(.slug=="general") | .id' 2>/dev/null || echo "")
-        fi
-
-        if [ -z "$CATEGORY_ID" ]; then
-          echo "❌ No valid category found. Available categories:"
-          gh api "/orgs/${ORG}/discussion_categories" --jq '.[].slug' 2>/dev/null || echo "Cannot fetch categories"
+          echo "❌ Category '${{ inputs.category }}' not found in repository $TARGET_REPO"
+          echo "Available categories:"
+          gh api graphql -f query="$GRAPHQL_QUERY" --jq '.data.repository.discussionCategories.nodes[].slug' 2>/dev/null
           exit 1
         fi
 
         echo "✅ Category ID: $CATEGORY_ID"
 
-        # Create organization discussion
-        echo "📝 Creating discussion..."
-        DISCUSSION_RESPONSE=$(gh api -X POST "/orgs/${ORG}/discussions" \
-          -f title="🚀 Release $TAG" \
-          -f body="$RELEASE_NOTES" \
-          -f category_id="$CATEGORY_ID" \
-          --jq '.html_url' 2>&1)
+        # Créer la discussion dans le dépôt via GraphQL
+        echo "📝 Creating discussion in repository..."
 
-        # Vérifier si la réponse est une URL valide
-        if [[ "$DISCUSSION_RESPONSE" =~ ^https?:// ]]; then
-          ANNOUNCEMENT_URL="$DISCUSSION_RESPONSE"
-          echo "✅ Announcement created: $ANNOUNCEMENT_URL"
+        CREATE_MUTATION=$(cat <<EOF
+        {
+          "query": "mutation(\$repoId: ID!, \$categoryId: ID!, \$title: String!, \$body: String!) {
+            createDiscussion(input: {
+              repositoryId: \$repoId,
+              categoryId: \$categoryId,
+              title: \$title,
+              body: \$body
+            }) {
+              discussion {
+                url
+              }
+            }
+          }",
+          "variables": {
+            "repoId": "$(gh api graphql -f query="query { repository(owner:\"$REPO_OWNER\", name:\"$REPO_NAME\") { id } }" --jq '.data.repository.id')",
+            "categoryId": "$CATEGORY_ID",
+            "title": "🚀 Release $TAG",
+            "body": "$RELEASE_NOTES"
+          }
+        }
+        EOF
+        )
+
+        DISCUSSION_URL=$(gh api graphql -f query="$CREATE_MUTATION" --jq '.data.createDiscussion.discussion.url' 2>&1)
+
+        if [[ "$DISCUSSION_URL" =~ ^https?:// ]]; then
+          echo "✅ Announcement created: $DISCUSSION_URL"
+          echo "announcement_url=$DISCUSSION_URL" >> "$GITHUB_OUTPUT"
         else
           echo "❌ Failed to create discussion"
-          echo "Error: $DISCUSSION_RESPONSE"
+          echo "Error: $DISCUSSION_URL"
           exit 1
         fi
-
-        # Sauvegarder le résultat
-        echo "announcement_url=$ANNOUNCEMENT_URL" >> "$GITHUB_OUTPUT"
