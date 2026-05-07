@@ -1,18 +1,61 @@
-# .github/workflows/announce-release.yml
-name: Announce Release
+# .github/workflows/test-discussion.yml
+name: Test Discussion Creation
 
 on:
-  release:
-    types: [published]
+  workflow_dispatch:
+    inputs:
+      category:
+        description: "Category"
+        required: false
+        default: "general"
+        type: choice
+        options:
+          - general
+          - announcements
+          - ideas
+      tag:
+        description: "Tag name (optional, defaults to latest)"
+        required: false
+        default: ""
+
+# ⚠️ CRUCIAL : Ajouter ces permissions
+permissions:
+  contents: read
+  discussions: write # ← Permission pour créer des discussions
 
 jobs:
-  announce:
+  announcement:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Create announcement
+      - name: Check discussions enabled
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Vérifier si les discussions sont activées
+          REPO="${{ github.repository }}"
+          echo "Repository : ${REPO}"
+          if gh api "/repos/${REPO}" --jq '.has_discussions' | grep -q "true"; then
+            echo "✅ Discussions are enabled!"
+          else
+            echo "❌ Discussions are NOT enabled"
+            echo "Please enable them in: https://github.com/${REPO}/settings"
+            exit 1
+          fi
+
+      - name: Create test discussion
+        id: announce
         uses: ./.github/actions/releases-announcement
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          category: "announcements" # ou "general", "show-and-tell"
+          category: ${{ github.event.inputs.category }}
+          repository: "${{ github.repository }}"
+
+      - name: Show result
+        run: |
+          echo "✅ Success!"
+          echo "🔗 Discussion URL: ${{ steps.announce.outputs.announcement_url }}"
