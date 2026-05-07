@@ -7,7 +7,6 @@ permissions:
 
 on:
   push:
-    # Déclenche le workflow lorsqu'un nouveau tag est poussé
     tags:
       - 'v*'
 
@@ -28,7 +27,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Lancement de GoReleaser
-        uses: goreleaser/goreleaser-action@v5
+        uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
           version: latest
