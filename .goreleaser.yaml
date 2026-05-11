@@ -1,7 +1,7 @@
 # .goreleaser.yaml
 version: 2
 
-# Désactivez la construction automatique des releases
+# Désactive la construction
 builds:
   - skip: true
 
@@ -17,15 +17,15 @@ dockers:
       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
       - "--label=org.opencontainers.image.version={{.Version}}"
 
-# Désactivez les checksums
+# Désactive les checksums
 checksum:
   disable: true
 
-# Désactivez le changelog automatique
+# Désactive le changelog
 changelog:
   disable: true
 
-# Configuration minimale pour la release GitHub
+# Configuration release
 release:
   draft: true
   replace_existing_draft: true
