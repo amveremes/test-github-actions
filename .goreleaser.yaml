@@ -1,31 +1,40 @@
-# This is an example .goreleaser.yml file with some sensible defaults.
-# Make sure to check the documentation at https://goreleaser.com
-
-# The lines below are called `modelines`. See `:help modeline`
-# Feel free to remove those if you don't want/need to use them.
-# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
-# vim: set ts=2 sw=2 tw=0 fo=cnqoj
-
+# .goreleaser.yaml
 version: 2
 
+# Désactivez la construction automatique des releases
 builds:
-  - id: wheel
-    builder: uv
-    buildmode: wheel
-  - id: sdist
-    builder: uv
-    buildmode: sdist
+  - skip: true  # On ne construit rien, on utilise seulement Docker
 
+# Configuration Docker uniquement
+dockers:
+  - image_templates:
+      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}:latest"
+      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}:{{ .Tag }}"
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+
+# Désactivez les archives
+archives:
+  - format: binary
+    disabled: true
+
+# Désactivez les checksums
+checksum:
+  disable: true
+
+# Désactivez le changelog automatique
 changelog:
-  sort: asc
-  filters:
-    exclude:
-      - "^docs:"
-      - "^test:"
+  disable: true
 
+# Configuration minimale pour la release GitHub
 release:
-  footer: >-
-
-    ---
-
-    Released by [GoReleaser](https://github.com/goreleaser/goreleaser).
+  github:
+    owner: "{{ .Env.GITHUB_REPOSITORY_OWNER }}"
+    name: "{{ .ProjectName }}"
+  # Désactivez l'upload d'artefacts
+  draft: true  # Crée une release en brouillon sans artefacts
+  replace_existing_draft: true
