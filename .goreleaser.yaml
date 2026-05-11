@@ -3,7 +3,7 @@ version: 2
 
 # Désactivez la construction automatique des releases
 builds:
-  - skip: true  # On ne construit rien, on utilise seulement Docker
+  - skip: true
 
 # Configuration Docker uniquement
 dockers:
@@ -17,11 +17,6 @@ dockers:
       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
       - "--label=org.opencontainers.image.version={{.Version}}"
 
-# Désactivez les archives
-archives:
-  - format: binary
-    disabled: true
-
 # Désactivez les checksums
 checksum:
   disable: true
@@ -32,9 +27,5 @@ changelog:
 
 # Configuration minimale pour la release GitHub
 release:
-  github:
-    owner: "{{ .Env.GITHUB_REPOSITORY_OWNER }}"
-    name: "{{ .ProjectName }}"
-  # Désactivez l'upload d'artefacts
-  draft: true  # Crée une release en brouillon sans artefacts
+  draft: true
   replace_existing_draft: true

@@ -12,12 +12,13 @@ RUN pip install uv
 #pip install --no-cache-dir -r requirements.txt
 RUN uv sync
 
-# Exposition du port Flask par défaut
+# Exposition du port Flask
 EXPOSE 5000
 
-# Variable d'environnement pour Flask
+# Variables d'environnement
 ENV FLASK_APP=main.py
 ENV FLASK_RUN_HOST=0.0.0.0
+ENV PATH="/app/.venv/bin:$PATH"
 
-# Exécution de votre application
+# Commande de démarrage
 CMD ["python", "main.py"]
