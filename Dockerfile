@@ -1,10 +1,13 @@
 # Dockerfile
 FROM python:3.11-slim
-
 WORKDIR /app
 
 # Copie du code source, qui a été préparé par GoReleaser
 COPY . /app
+
+# Copie explicite des fichiers nécessaires
+COPY pyproject.toml uv.lock ./
+COPY main.py ./
 
 RUN pip install uv
 
