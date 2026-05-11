@@ -11,6 +11,11 @@ dockers:
       - "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}:latest"
       - "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}:{{ .Tag }}"
     dockerfile: Dockerfile
+    # IMPORTANT: Spécifiez les fichiers à inclure dans le contexte de build
+    extra_files:
+      - main.py
+      - pyproject.toml
+      - uv.lock
     build_flag_templates:
       - "--label=org.opencontainers.image.created={{.Date}}"
       - "--label=org.opencontainers.image.title={{.ProjectName}}"
