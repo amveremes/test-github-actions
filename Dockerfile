@@ -3,12 +3,14 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Copie des fichiers nécessaires
-COPY requirements.txt .
-COPY main.py .
+# Copie du code source, qui a été préparé par GoReleaser
+COPY . /app
 
-# Installation des dépendances
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install uv
+# Installation des dépendances (optionnel, si vous utilisez les 'extra_files')
+# L'idée est de garder cette étape légère, car GoReleaser a déjà fait le gros du travail.
+#pip install --no-cache-dir -r requirements.txt
+RUN uv sync
 
 # Exposition du port Flask par défaut
 EXPOSE 5000
@@ -17,5 +19,5 @@ EXPOSE 5000
 ENV FLASK_APP=main.py
 ENV FLASK_RUN_HOST=0.0.0.0
 
-# Commande de démarrage
+# Exécution de votre application
 CMD ["python", "main.py"]
