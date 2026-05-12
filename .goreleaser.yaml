@@ -1,26 +1,44 @@
 # .goreleaser.yaml
 version: 2
 
-# Désactive la construction
+# Désactive la construction (pas de binaire Go à construire)
 builds:
   - skip: true
 
-# Configuration Docker uniquement
-dockers:
-  - image_templates:
-      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}:latest"
-      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}:{{ .Tag }}"
+# Configuration Docker v2 (multi-arch)
+dockers_v2:
+  - # Nom de l'image Docker
+    images:
+      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}"
+    
+    # Tags à appliquer
+    tags:
+      - "latest"
+      - "{{ .Tag }}"
+    
+    # Chemin vers le Dockerfile
     dockerfile: Dockerfile
-    # IMPORTANT: Spécifiez les fichiers à inclure dans le contexte de build
+    
+    # Fichiers supplémentaires à inclure dans le contexte
     extra_files:
       - main.py
       - pyproject.toml
       - uv.lock
-    build_flag_templates:
-      - "--label=org.opencontainers.image.created={{.Date}}"
-      - "--label=org.opencontainers.image.title={{.ProjectName}}"
-      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-      - "--label=org.opencontainers.image.version={{.Version}}"
+    
+    # Labels OCI pour la metadata
+    labels:
+      "org.opencontainers.image.created": "{{.Date}}"
+      "org.opencontainers.image.title": "{{.ProjectName}}"
+      "org.opencontainers.image.revision": "{{.FullCommit}}"
+      "org.opencontainers.image.version": "{{.Version}}"
+      "org.opencontainers.image.source": "https://github.com/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}"
+    
+    # Plateformes cibles (optionnel, par défaut linux/amd64 et linux/arm64)
+    platforms:
+      - linux/amd64
+    
+    # Désactiver le SBOM (Software Bill of Materials) pour simplifier
+    sbom: false
 
 # Désactive les checksums
 checksum:

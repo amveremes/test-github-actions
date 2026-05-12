@@ -8,3 +8,8 @@ Example :
 git tag v0.1.4
 git push origin v0.1.4  
 ```
+
+Start container :
+```bash
+docker run -d -p 5000:5000 ghcr.io/amveremes/test-github-actions:latest
+```
