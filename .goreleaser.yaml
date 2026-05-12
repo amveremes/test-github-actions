@@ -8,6 +8,8 @@ builds:
 # Configuration Docker v2 (multi-arch)
 dockers_v2:
   - # Nom de l'image Docker
+    id: "test-docker-image"
+
     images:
       - "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}"
     
@@ -39,6 +41,11 @@ dockers_v2:
     
     # Désactiver le SBOM (Software Bill of Materials) pour simplifier
     sbom: false
+
+    retry:
+      attempts: 5
+      delay: 10s
+      max_delay: 2m
 
 # Désactive les checksums
 checksum:

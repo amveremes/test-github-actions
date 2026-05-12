@@ -1,19 +1,32 @@
-# Dockerfile
-FROM python:3.11-slim
+# Dockerfile - Version finale avec venv
+FROM debian:trixie-slim
 
-ARG TARGETPLATFORM
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates curl && \
+    curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    mv /root/.local/bin/uv /usr/local/bin/uv && \
+    mv /root/.local/bin/uvx /usr/local/bin/uvx && \
+    apt-get purge -y curl && \
+    apt-get autoremove -y && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN uv python install 3.11 && \
+    uv python pin 3.11
+
 WORKDIR /app
 
-# Copie des fichiers
 COPY main.py pyproject.toml uv.lock ./
 
-RUN pip install uv
-RUN uv venv
-ENV PATH="/app/.venv/bin:$PATH"
-RUN uv sync
+# Création du venv et synchronisation
+RUN uv venv && \
+    . .venv/bin/activate && \
+    uv sync
 
-EXPOSE 5000
+# Activation du venv pour le runtime
+ENV PATH="/app/.venv/bin:$PATH"
 ENV FLASK_APP=main.py
 ENV FLASK_RUN_HOST=0.0.0.0
+
+EXPOSE 5000
 
 CMD ["python", "main.py"]
