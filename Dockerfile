@@ -1,13 +1,13 @@
 # Dockerfile - Version finale avec venv
 FROM debian:trixie-slim
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends ca-certificates curl && \
+RUN apt update && \
+    apt install -y --no-install-recommends ca-certificates curl && \
     curl -LsSf https://astral.sh/uv/install.sh | sh && \
     mv /root/.local/bin/uv /usr/local/bin/uv && \
     mv /root/.local/bin/uvx /usr/local/bin/uvx && \
-    apt-get purge -y curl && \
-    apt-get autoremove -y && \
+    apt purge -y curl && \
+    apt autoremove -y && \
     rm -rf /var/lib/apt/lists/*
 
 RUN uv python install 3.11 && \
