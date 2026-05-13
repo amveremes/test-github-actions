@@ -1,5 +1,7 @@
+# docker/apache-superset/Dockerfile
 # =============================================================================
 # Production Superset Dockerfile
+#
 #
 # Basé sur la documentation officielle :
 # https://superset.apache.org/admin-docs/installation/docker-builds
