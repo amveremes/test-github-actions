@@ -19,7 +19,7 @@ dockers_v2:
     # Additional files to include in the Docker build context (relative to the repository root)
     extra_files:
       - docker/apache-superset/config/superset_config.py
-      - docker/apache-superset/config/exemple.env
+      - docker/apache-superset/config/example.env
     # Labels OCI pour la metadata
     labels:
       "org.opencontainers.image.created": "{{.Date}}"
