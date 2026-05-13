@@ -1,32 +1,25 @@
 # .goreleaser.yaml
 version: 2
 
-# Désactive la construction (pas de binaire Go à construire)
+# Disable binary builds, only build Docker image
 builds:
   - skip: true
 
 # Configuration Docker v2 (multi-arch)
 dockers_v2:
-  - # Nom de l'image Docker
-    id: "test-docker-image"
-
+  - id: "apache-superset"
     images:
       - "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}"
-    
-    # Tags à appliquer
+    # Add Tags to the image, including "latest" and the version tag
     tags:
       - "latest"
       - "{{ .Tag }}"
-    
-    # Chemin vers le Dockerfile
-    dockerfile: Dockerfile
-    
-    # Fichiers supplémentaires à inclure dans le contexte
+    # Path to the Dockerfile (relative to the repository root)
+    dockerfile: docker/apache-superset/Dockerfile
+    # Additional files to include in the Docker build context (relative to the repository root)
     extra_files:
-      - main.py
-      - pyproject.toml
-      - uv.lock
-    
+      - docker/apache-superset/config/superset_config.py
+      - docker/apache-superset/.env
     # Labels OCI pour la metadata
     labels:
       "org.opencontainers.image.created": "{{.Date}}"
@@ -34,28 +27,8 @@ dockers_v2:
       "org.opencontainers.image.revision": "{{.FullCommit}}"
       "org.opencontainers.image.version": "{{.Version}}"
       "org.opencontainers.image.source": "https://github.com/{{ .Env.GITHUB_REPOSITORY_OWNER }}/{{ .ProjectName }}"
-    
-    # Plateformes cibles (optionnel, par défaut linux/amd64 et linux/arm64)
+    # Plateforms targets (ex: linux/amd64, linux/arm64)
     platforms:
       - linux/amd64
-    
-    # Désactiver le SBOM (Software Bill of Materials) pour simplifier
-    sbom: false
-
-    retry:
-      attempts: 5
-      delay: 10s
-      max_delay: 2m
-
-# Désactive les checksums
-checksum:
-  disable: true
-
-# Désactive le changelog
-changelog:
-  disable: true
-
-# Configuration release
-release:
-  draft: true
-  replace_existing_draft: true
+    # Include SBOM release artifacts
+    sbom: "{{ not .IsNightly }}"

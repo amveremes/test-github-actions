@@ -1,5 +1,4 @@
-# .github/workflows/release.yaml
-name: Release avec GoReleaser
+name: Release
 
 permissions:
   contents: write
@@ -11,10 +10,12 @@ on:
       - 'v*'
 
 jobs:
-  goreleaser:
+  tag-and-release:
+    name: 🚀 Tag & Release
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout du code
+      - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
@@ -26,7 +27,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Lancement de GoReleaser
+      - name: Build Docker Image
         uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
