@@ -66,8 +66,8 @@ RUN apt-get update && \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* /tmp/* /var/tmp/*
 
 # Copier la configuration custom (sans secrets)
-COPY --chown=superset:superset docker/apache-superset/config/.env /app/config/.env
-COPY --chown=superset:superset docker/apache-superset/config/superset_config.py /app/config/superset_config.py
+COPY --chown=superset:superset .env /app/config/.env
+COPY --chown=superset:superset superset_config.py /app/config/superset_config.py
 
 # Variables d'environnement
 ENV PYTHONPATH="/app/config:$PYTHONPATH" \
