@@ -1,6 +1,11 @@
 # test-github-actions
 test github actions
 
+# test docker build
+```bash
+docker build -t amveremes/test-github-actions .
+```
+
 # create release with goreleaser
 
 Example :
