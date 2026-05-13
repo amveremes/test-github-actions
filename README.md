@@ -5,8 +5,8 @@ test github actions
 
 Example :
 ```bash
-git tag v0.1.17
-git push origin v0.1.17  
+git tag v0.1.19
+git push origin v0.1.19
 ```
 
 Start container :
