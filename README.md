@@ -27,14 +27,14 @@ Voici l'architecture de notre infrastructure gérée par Terraform/Terramate :
 
 ```mermaid
 architecture-beta
-    group dns(logos:aws-route53)[DNS Zone]
-    group delivery(logos:aws-cloudfront)[Content Delivery]
-    group compute(logos:aws-ec2)[Compute Layer]
+    group dns[DNS Zone]
+    group delivery[Content Delivery]
+    group compute[Compute Layer]
     
-    service route53(logos:aws-route53)[Route 53] in dns
-    service cloudfront(logos:aws-cloudfront)[CloudFront] in delivery
-    service alb(logos:aws-ec2)[Load Balancer] in compute
-    service ui(logos:nextjs)[UI Application] in compute
+    service route53[Route 53] in dns
+    service cloudfront[CloudFront] in delivery
+    service alb[Load Balancer] in compute
+    service ui[UI Application] in compute
     
     route53:R --> L:cloudfront
     cloudfront:R --> L:alb
